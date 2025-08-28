@@ -683,7 +683,7 @@ export default function Home() {
                   ) : nextClass ? (
                     <div>
                       <PixelText size="text-lg" color="text-cyan-400" className="mb-2">
-                        → NEXT MISSION
+                        → NEXT CLASS
                       </PixelText>
                       <PixelText size="text-xl" color="text-yellow-400">
                         {nextClass.matkul}
@@ -695,7 +695,7 @@ export default function Home() {
                           color: '#cccccc'
                         }}
                       >
-                        LAUNCH: {nextClass.jam_mulai.slice(0, 5)} ({timeUntilNextClass})
+                        START AT: {nextClass.jam_mulai.slice(0, 5)} ({timeUntilNextClass})
                       </div>
                     </div>
                   ) : (
