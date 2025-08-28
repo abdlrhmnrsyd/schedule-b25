@@ -25,7 +25,7 @@ export default function AdminPage() {
   const [editId, setEditId] = useState<number | null>(null);
 
   const fetchData = async () => {
-    let { data, error } = await supabase.from("jadwal").select("*").order("jam_mulai");
+    const { data, error } = await supabase.from("jadwal").select("*").order("jam_mulai");
     if (!error) setJadwal(data || []);
   };
 
