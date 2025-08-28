@@ -1,0 +1,507 @@
+"use client";
+import { useEffect, useMemo, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+
+import { supabase } from "@/lib/supabaseClient";
+
+type Jadwal = {
+  id: number;
+  hari: string;
+  matkul: string;
+  dosen: string;
+  lokasi: string;
+  jam_mulai: string;
+  jam_selesai: string;
+};
+
+// Glitch Text Component
+const GlitchText = ({ children, className = "" }) => {
+  return (
+    <motion.div
+      className={`relative inline-block ${className}`}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.5 }}
+    >
+      <span className="relative z-10">{children}</span>
+      <motion.span
+        className="absolute top-0 left-0 text-cyan-400 opacity-70"
+        animate={{
+          x: [0, -2, 2, 0],
+          y: [0, 1, -1, 0],
+        }}
+        transition={{
+          duration: 0.1,
+          repeat: Infinity,
+          repeatType: "mirror",
+        }}
+      >
+        {children}
+      </motion.span>
+      <motion.span
+        className="absolute top-0 left-0 text-pink-500 opacity-50"
+        animate={{
+          x: [0, 2, -2, 0],
+          y: [0, -1, 1, 0],
+        }}
+        transition={{
+          duration: 0.15,
+          repeat: Infinity,
+          repeatType: "mirror",
+        }}
+      >
+        {children}
+      </motion.span>
+    </motion.div>
+  );
+};
+
+// Neon Button Component
+const NeonButton = ({ children, active, onClick, className = "" }) => {
+  return (
+    <motion.button
+      className={`relative px-6 py-3 bg-black border-2 ${
+        active ? 'border-cyan-400 text-cyan-400' : 'border-gray-600 text-gray-400'
+      } font-mono uppercase tracking-wider transition-all duration-300 ${className}`}
+      style={{
+        boxShadow: active ? '0 0 20px rgba(34, 211, 238, 0.5)' : 'none',
+        background: active 
+          ? 'linear-gradient(45deg, rgba(34, 211, 238, 0.1), rgba(236, 72, 153, 0.1))' 
+          : 'rgba(0, 0, 0, 0.8)'
+      }}
+      onClick={onClick}
+      whileHover={{ scale: 1.05 }}
+      whileTap={{ scale: 0.95 }}
+    >
+      {children}
+      {active && (
+        <motion.div
+          className="absolute inset-0 border-2 border-cyan-400"
+          animate={{
+            opacity: [0, 1, 0],
+          }}
+          transition={{
+            duration: 1,
+            repeat: Infinity,
+          }}
+        />
+      )}
+    </motion.button>
+  );
+};
+
+// Matrix Rain Background
+const MatrixRain = () => {
+  const [drops, setDrops] = useState([]);
+
+  useEffect(() => {
+    const chars = "TRPL 1B JAYA JAYA JAYA!!!, TRPL 1B PRIDE";
+    const newDrops = [];
+    
+    for (let i = 0; i < 15; i++) {
+      newDrops.push({
+        id: i,
+        x: Math.random() * 100,
+        chars: Array.from({ length: 20 }, () => chars[Math.floor(Math.random() * chars.length)]),
+        delay: Math.random() * 2
+      });
+    }
+    setDrops(newDrops);
+  }, []);
+
+  return (
+    <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden opacity-10">
+      {drops.map((drop) => (
+        <motion.div
+          key={drop.id}
+          className="absolute text-green-400 font-mono text-sm"
+          style={{ left: `${drop.x}%` }}
+          initial={{ y: -200 }}
+          animate={{ y: window.innerHeight + 200 }}
+          transition={{
+            duration: 10,
+            repeat: Infinity,
+            delay: drop.delay,
+            ease: "linear"
+          }}
+        >
+          {drop.chars.map((char, index) => (
+            <div key={index} className="leading-4">
+              {char}
+            </div>
+          ))}
+        </motion.div>
+      ))}
+    </div>
+  );
+};
+
+export default function Home() {
+  const [jadwal, setJadwal] = useState<Jadwal[]>([]);
+  const [selectedDay, setSelectedDay] = useState<string>("");
+  const [currentTime, setCurrentTime] = useState<Date>(new Date());
+  const [mounted, setMounted] = useState(false);
+
+  const dayOrder: Record<string, number> = useMemo(
+    () => ({ senin: 1, selasa: 2, rabu: 3, kamis: 4, jumat: 5 }),
+    []
+  );
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      const { data, error } = await supabase.from("jadwal").select("*");
+      if (error) console.error(error);
+      else {
+        console.log("Data dari database:", data); // Debug log
+        setJadwal(data || []);
+      }
+    };
+    fetchData();
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, [mounted]);
+
+  const daysOfWeek = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat"];
+
+  const getDayName = (date: Date) => {
+    const days = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
+    return days[date.getDay()];
+  };
+
+  const currentDayName = mounted ? getDayName(currentTime) : "";
+  const nowTimeInMinutes = mounted
+    ? currentTime.getHours() * 60 + currentTime.getMinutes()
+    : 0;
+
+  const toMinutes = (t: string) => {
+    const [h, m] = t.slice(0, 5).split(":").map(Number);
+    return h * 60 + m;
+  };
+
+  // Check if class is currently active
+  const isClassActive = (jadwal: Jadwal) => {
+    if (!mounted || currentDayName.toLowerCase() !== jadwal.hari.toLowerCase()) return false;
+    
+    const classStart = toMinutes(jadwal.jam_mulai);
+    const classEnd = toMinutes(jadwal.jam_selesai);
+    
+    return nowTimeInMinutes >= classStart && nowTimeInMinutes <= classEnd;
+  };
+
+  const { nextClass, timeUntilNextClass, currentClass } = useMemo(() => {
+    if (!mounted) return { nextClass: null as Jadwal | null, timeUntilNextClass: "" };
+    const todayList = [...jadwal]
+      .filter((j) => j.hari?.toLowerCase() === currentDayName.toLowerCase())
+      .sort((a, b) => toMinutes(a.jam_mulai) - toMinutes(b.jam_mulai));
+
+    for (const j of todayList) {
+      const classStart = toMinutes(j.jam_mulai);
+      if (classStart > nowTimeInMinutes) {
+        const diff = classStart - nowTimeInMinutes;
+        const h = Math.floor(diff / 60);
+        const m = diff % 60;
+        return {
+          nextClass: j,
+          timeUntilNextClass: `${h > 0 ? `${h}h ` : ""}${m}m`,
+        };
+      }
+    }
+    return { nextClass: null, timeUntilNextClass: "" };
+  }, [mounted, jadwal, currentDayName, nowTimeInMinutes]);
+
+  const filteredJadwal = useMemo(() => {
+    const base = selectedDay
+      ? jadwal.filter((j) => j.hari?.toLowerCase() === selectedDay.toLowerCase())
+      : jadwal;
+
+    return [...base].sort((a, b) => {
+      const dayA = dayOrder[a.hari?.toLowerCase() || ""] ?? 99;
+      const dayB = dayOrder[b.hari?.toLowerCase() || ""] ?? 99;
+      if (dayA !== dayB) return dayA - dayB;
+      return toMinutes(a.jam_mulai) - toMinutes(b.jam_mulai);
+    });
+  }, [jadwal, selectedDay, dayOrder]);
+
+  return (
+    <div className="min-h-screen bg-black text-white relative overflow-hidden">
+      <MatrixRain />
+      
+      {/* Cyberpunk Grid Background */}
+      <div 
+        className="fixed inset-0 z-0 opacity-20"
+        style={{
+          backgroundImage: `
+            linear-gradient(rgba(34, 211, 238, 0.3) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(34, 211, 238, 0.3) 1px, transparent 1px)
+          `,
+          backgroundSize: '50px 50px'
+        }}
+      />
+
+      {/* Main Content */}
+      <main className="relative z-10 p-8">
+        {/* Title */}
+        <motion.div
+          className="text-center mb-12"
+          initial={{ opacity: 0, y: -50 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 1 }}
+        >
+          <GlitchText className="text-6xl font-bold font-mono">
+            <span className="text-cyan-400">1B TRPL</span>{" "}
+            <span className="text-pink-500">SCHEDULE</span>
+          </GlitchText>
+          <motion.div
+            className="h-1 w-32 mx-auto mt-4"
+            style={{
+              background: 'linear-gradient(90deg, #22d3ee, #ec4899, #22d3ee)',
+              boxShadow: '0 0 20px rgba(34, 211, 238, 0.8)'
+            }}
+            animate={{
+              boxShadow: [
+                '0 0 20px rgba(34, 211, 238, 0.8)',
+                '0 0 30px rgba(236, 72, 153, 0.8)',
+                '0 0 20px rgba(34, 211, 238, 0.8)'
+              ]
+            }}
+            transition={{ duration: 2, repeat: Infinity }}
+          />
+        </motion.div>
+
+        {/* Time Display */}
+        <motion.div
+          className="text-center mb-12"
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.8, delay: 0.5 }}
+        >
+          <div className="max-w-2xl mx-auto bg-black bg-opacity-80 backdrop-blur-sm border border-cyan-400 rounded-lg p-6 relative">
+            <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/10 to-pink-500/10 rounded-lg" />
+            <div className="relative">
+              <motion.div
+                className="text-4xl font-mono mb-4"
+                animate={{
+                  textShadow: [
+                    '0 0 10px rgba(34, 211, 238, 0.8)',
+                    '0 0 20px rgba(34, 211, 238, 0.8)',
+                    '0 0 10px rgba(34, 211, 238, 0.8)'
+                  ]
+                }}
+                transition={{ duration: 2, repeat: Infinity }}
+              >
+                {mounted
+                  ? currentTime.toLocaleTimeString("id-ID", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      second: "2-digit",
+                    })
+                  : "••:••:••"}
+              </motion.div>
+
+              {mounted && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5, delay: 1 }}
+                >
+                  {currentClass ? (
+                    <div className="text-lg font-mono mb-4 p-4 border border-red-400 rounded-lg bg-red-400 bg-opacity-10">
+                      <motion.div
+                        className="flex items-center justify-center gap-2"
+                        animate={{
+                          opacity: [1, 0.5, 1],
+                        }}
+                        transition={{
+                          duration: 1,
+                          repeat: Infinity,
+                        }}
+                      >
+                        <div className="w-3 h-3 bg-red-400 rounded-full animate-pulse" />
+                        <span className="text-red-400 font-bold">LIVE_CLASS:</span>
+                        <span className="text-white">{currentClass.matkul}</span>
+                      </motion.div>
+                      <div className="text-center mt-2 text-sm text-gray-300">
+                        <span className="text-yellow-400">LOCATION:</span> {currentClass.lokasi} | 
+                        <span className="text-cyan-400"> ENDS_AT:</span> {currentClass.jam_selesai.slice(0, 5)}
+                      </div>
+                    </div>
+                  ) : nextClass ? (
+                    <div className="text-lg font-mono">
+                      <span className="text-cyan-400">NEXT_CLASS:</span>{" "}
+                      <span className="text-pink-400">{nextClass.matkul}</span>
+                      <br />
+                      <span className="text-gray-400">START_TIME:</span>{" "}
+                      <span className="text-green-400">{nextClass.jam_mulai.slice(0, 5)}</span>
+                      <span className="text-yellow-400"> ({timeUntilNextClass})</span>
+                    </div>
+                  ) : (
+                    <div className="text-lg font-mono text-gray-400">
+                      NO_MORE_CLASSES_TODAY
+                    </div>
+                  )}
+                </motion.div>
+              )}
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Day Filter */}
+        <motion.div
+          className="flex justify-center mb-12"
+          initial={{ opacity: 0, y: 50 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, delay: 0.8 }}
+        >
+          <div className="flex flex-wrap gap-4">
+            <NeonButton
+              active={selectedDay === ""}
+              onClick={() => setSelectedDay("")}
+            >
+              ALL_DAYS
+            </NeonButton>
+            {daysOfWeek.map((day) => (
+              <NeonButton
+                key={day}
+                active={selectedDay === day}
+                onClick={() => setSelectedDay(day)}
+              >
+                {day.toUpperCase()}
+              </NeonButton>
+            ))}
+          </div>
+        </motion.div>
+
+        {/* Schedule Cards */}
+        <motion.div
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8 max-w-7xl mx-auto"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 1, delay: 1 }}
+        >
+          <AnimatePresence mode="wait">
+            {filteredJadwal.length > 0 ? (
+              filteredJadwal.map((j, index) => (
+                <motion.div
+                  key={j.id}
+                  className="relative group"
+                  initial={{ opacity: 0, y: 50, scale: 0.9 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -50, scale: 0.9 }}
+                  transition={{ duration: 0.5, delay: index * 0.1 }}
+                  whileHover={{ scale: 1.05, rotateY: 5 }}
+                >
+                  {/* Card Background with Holographic Effect */}
+                  <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/20 to-pink-500/20 rounded-lg blur-sm group-hover:blur-none transition-all duration-300" />
+                  
+                  <div className="relative bg-black bg-opacity-90 backdrop-blur-sm border border-cyan-400/50 rounded-lg p-7 h-full">
+                    {/* Corner Decorations */}
+                    <div className="absolute top-2 left-2 w-4 h-4 border-l-2 border-t-2 border-cyan-400" />
+                    <div className="absolute top-2 right-2 w-4 h-4 border-r-2 border-t-2 border-cyan-400" />
+                    <div className="absolute bottom-2 left-2 w-4 h-4 border-l-2 border-b-2 border-cyan-400" />
+                    <div className="absolute bottom-2 right-2 w-4 h-4 border-r-2 border-b-2 border-cyan-400" />
+
+                    {/* Header - Day and Time */}
+                    <div className="flex items-center justify-between mb-3">
+                      <motion.span 
+                        className="text-sm font-semibold text-white-400 bg-cyan-400 bg-opacity-20 px-3 py-1 rounded-full border border-cyan-400 font-mono uppercase"
+                        whileHover={{ boxShadow: '0 0 15px rgba(34, 211, 238, 0.8)' }}
+                      >
+                        {j.hari}
+                      </motion.span>
+                      <motion.span 
+                        className="text-xs font-medium text-white-400 bg-pink-400 bg-opacity-20 px-2 py-1 rounded-full tabular-nums border border-pink-400 font-mono"
+                        whileHover={{ boxShadow: '0 0 15px rgba(236, 72, 153, 0.8)' }}
+                      >
+                        {j.jam_mulai.slice(0, 5)} – {j.jam_selesai.slice(0, 5)}
+                      </motion.span>
+                    </div>
+
+                    {/* Course Title */}
+                    <motion.h2
+                      className="text-2xl font-bold mb-2 text-white font-mono"
+                      animate={{
+                        textShadow: [
+                          '0 0 5px rgba(255, 255, 255, 0.8)',
+                          '0 0 10px rgba(255, 255, 255, 0.8)',
+                          '0 0 5px rgba(255, 255, 255, 0.8)'
+                        ]
+                      }}
+                      transition={{ duration: 3, repeat: Infinity }}
+                    >
+                      {j.matkul}
+                    </motion.h2>
+
+                    {/* Details */}
+                    <div className="space-y-1">
+                      <p className="text-gray-300 mb-1 text-lg font-mono">
+                        <span className="font-semibold text-cyan-400">DOSEN:</span> {j.dosen}
+                      </p>
+                      <p className="text-gray-300 text-lg font-mono">
+                        <span className="font-semibold text-cyan-400">LOKASI:</span> {j.lokasi}
+                      </p>
+                    </div>
+
+                    {/* Animated Border */}
+                    <motion.div
+                      className={`absolute inset-0 border rounded-lg opacity-0 group-hover:opacity-100 ${
+                        isClassActive(j) ? 'border-red-400' : 'border-cyan-400'
+                      }`}
+                      animate={{
+                        boxShadow: isClassActive(j) 
+                          ? [
+                              '0 0 0px rgba(239, 68, 68, 0.8)',
+                              '0 0 20px rgba(239, 68, 68, 0.8)',
+                              '0 0 0px rgba(239, 68, 68, 0.8)'
+                            ]
+                          : [
+                              '0 0 0px rgba(34, 211, 238, 0.8)',
+                              '0 0 20px rgba(34, 211, 238, 0.8)',
+                              '0 0 0px rgba(34, 211, 238, 0.8)'
+                            ]
+                      }}
+                      transition={{ duration: 2, repeat: Infinity }}
+                    />
+                  </div>
+                </motion.div>
+              ))
+            ) : (
+              <motion.div
+                className="col-span-full text-center py-20"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.5 }}
+              >
+                <div className="text-2xl font-mono text-gray-400 mb-4">
+                  NO_DATA_FOUND
+                </div>
+                <div className="text-sm font-mono text-cyan-400">
+                  SELECT_DIFFERENT_DAY_OR_CHECK_CONNECTION
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </motion.div>
+
+        {/* Footer Effects */}
+        <motion.div
+          className="mt-20 text-center"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 1, delay: 2 }}
+        >
+          <div className="font-mono text-xs text-gray-600">
+            E SCHEDULE TRPL 1B | @scriptb25
+          </div>
+        </motion.div>
+      </main>
+    </div>
+  );
+}
